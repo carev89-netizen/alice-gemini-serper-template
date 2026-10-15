@@ -223,6 +223,7 @@ export default async function handler(req, res) {
   const body = req.body && typeof req.body === "object" ? req.body : {};
   const text = String(body?.request?.command || body?.request?.original_utterance || "").trim();
   const oldHistory = safeHistory(body?.state?.session?.history);
+  console.log(`Request: new_session=${Boolean(body?.session?.new)} command="${text.slice(0, 120)}"`);
 
   if (!text) {
     return res.status(200).json(aliceResponse(
