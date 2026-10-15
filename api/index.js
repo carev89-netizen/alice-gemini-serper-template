@@ -2,9 +2,9 @@ const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 const MAX_HISTORY_MESSAGES = 8;
 const MAX_HISTORY_MESSAGE_CHARS = 1200;
 const MAX_ALICE_TEXT = 1024;
-const TOTAL_RESPONSE_BUDGET_MS = 3600;
+const TOTAL_RESPONSE_BUDGET_MS = 4100; // Yandex waits 4.5 s for a skill response
 const SERPER_TIMEOUT_MS = 600;
-const GEMINI_TIMEOUT_MS = 2500;
+const GEMINI_TIMEOUT_MS = 3500;
 
 const SYSTEM_PROMPT = [
   "Ты — полезный голосовой помощник в навыке Яндекс Алисы.",
@@ -128,6 +128,7 @@ async function askGemini(text, history, searchContext, timeoutMs) {
     : text;
   contents.push({ role: "user", parts: [{ text: prompt }] });
 
+  const geminiStartedAt = Date.now();
   const { response, data } = await fetchJson(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
     {
@@ -148,6 +149,7 @@ async function askGemini(text, history, searchContext, timeoutMs) {
     Math.min(GEMINI_TIMEOUT_MS, timeoutMs)
   );
 
+  console.log(`Gemini ${model} answered HTTP ${response.status} in ${Date.now() - geminiStartedAt} ms (budget ${Math.min(GEMINI_TIMEOUT_MS, timeoutMs)} ms)`);
   if (!response.ok) {
     const status = Number(response.status);
     console.error("Gemini request failed with HTTP", status);
@@ -243,7 +245,7 @@ export default async function handler(req, res) {
     // fetch() aborted by AbortController throws an error with name "AbortError" (message differs).
     const isTimeout = error?.name === "AbortError" || error?.name === "TimeoutError" || error?.message === "AbortError";
     const safeError = isTimeout ? new Error("TIME_BUDGET_EXHAUSTED") : error;
-    console.warn("Alice webhook returned a fallback response:", safeError?.message || "unknown error");
+    console.warn("Alice webhook returned a fallback response:", safeError?.message || "unknown error", `after ${Date.now() - startedAt} ms`);
     return res.status(200).json(aliceResponse(errorForUser(safeError), false, oldHistory));
   }
 }
