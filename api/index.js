@@ -46,7 +46,7 @@ function fitAliceText(value) {
 }
 
 function isSearchIntent(text) {
-  return /\b(latest|today|current|news|weather|price|exchange rate|recent|search|look up)\b|сегодня|сейчас|последн|новост|погод|курс валют|найди|поищи|актуальн|сколько стоит|свежие данные/i.test(text);
+  return /\b(latest|today|current|news|weather|price|exchange rate|recent|search|look up)\b|сегодня|сейчас|вчера|завтра|на этой неделе|в этом (году|месяце)|последн|новост|погод|курс|найди|поищи|узнай|актуальн|сколько стоит|сколько сейчас|(?<![а-яё])цен[аыуе](?![а-яё])|стоимост|свежие данные|что нового|кто выиграл|счёт матча|счет матча|результат|расписани|когда выйдет|когда будет|кто сейчас|\b20[2-3]\d\b/i.test(text);
 }
 
 function safeHistory(history) {
@@ -240,7 +240,9 @@ export default async function handler(req, res) {
 
     return res.status(200).json(aliceResponse(answer, false, history));
   } catch (error) {
-    const safeError = error?.message === "AbortError" ? "TIME_BUDGET_EXHAUSTED" : error;
+    // fetch() aborted by AbortController throws an error with name "AbortError" (message differs).
+    const isTimeout = error?.name === "AbortError" || error?.name === "TimeoutError" || error?.message === "AbortError";
+    const safeError = isTimeout ? new Error("TIME_BUDGET_EXHAUSTED") : error;
     console.warn("Alice webhook returned a fallback response:", safeError?.message || "unknown error");
     return res.status(200).json(aliceResponse(errorForUser(safeError), false, oldHistory));
   }
