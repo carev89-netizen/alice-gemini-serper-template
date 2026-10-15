@@ -2,9 +2,11 @@ const DEFAULT_MODEL = "gemini-3.5-flash-lite";
 const MAX_HISTORY_MESSAGES = 8;
 const MAX_HISTORY_MESSAGE_CHARS = 1200;
 const MAX_ALICE_TEXT = 1024;
-const TOTAL_RESPONSE_BUDGET_MS = 4100; // Yandex waits 4.5 s for a skill response
-const SERPER_TIMEOUT_MS = 600;
-const GEMINI_TIMEOUT_MS = 3500;
+// Yandex waits 4.5 s for a skill response. Timeouts can be tuned via Vercel env vars.
+const envMs = (name, fallback) => Number(process.env[name]) > 0 ? Number(process.env[name]) : fallback;
+const TOTAL_RESPONSE_BUDGET_MS = envMs("TOTAL_RESPONSE_BUDGET_MS", 4100);
+const SERPER_TIMEOUT_MS = envMs("SERPER_TIMEOUT_MS", 600);
+const GEMINI_TIMEOUT_MS = envMs("GEMINI_TIMEOUT_MS", 3500);
 
 const SYSTEM_PROMPT = [
   "Ты — полезный голосовой помощник в навыке Яндекс Алисы.",
@@ -73,6 +75,7 @@ async function searchWeb(query, timeoutMs) {
   const key = process.env.SERPER_API_KEY;
   if (!key || timeoutMs < 150) return "";
 
+  const serperStartedAt = Date.now();
   try {
     const { response, data } = await fetchJson(
       "https://google.serper.dev/search",
@@ -86,6 +89,7 @@ async function searchWeb(query, timeoutMs) {
       },
       Math.min(SERPER_TIMEOUT_MS, timeoutMs)
     );
+    console.log(`Serper answered HTTP ${response.status} in ${Date.now() - serperStartedAt} ms`);
 
     if (!response.ok) {
       console.warn("Serper request failed with HTTP", response.status);
@@ -105,7 +109,7 @@ async function searchWeb(query, timeoutMs) {
     if (answerBox) items.unshift(`Краткий ответ поисковика: ${String(answerBox).slice(0, 350)}`);
     return items.length ? items.join("\n") : "";
   } catch (error) {
-    console.warn("Serper request did not finish in time; continuing without search.");
+    console.warn(`Serper request failed after ${Date.now() - serperStartedAt} ms (${error?.name}); continuing without search.`);
     return "";
   }
 }
@@ -224,7 +228,7 @@ export default async function handler(req, res) {
     let searchContext = "";
     if (isSearchIntent(text) && process.env.SERPER_API_KEY) {
       // Search has a very short budget because Alice expects a response within 4.5 seconds.
-      searchContext = await searchWeb(text, Math.min(SERPER_TIMEOUT_MS, Math.max(0, remainingMs() - 2600)));
+      searchContext = await searchWeb(text, Math.min(SERPER_TIMEOUT_MS, Math.max(0, remainingMs() - 2000)));
     }
 
     const answer = await askGemini(
