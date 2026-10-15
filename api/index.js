@@ -13,8 +13,11 @@ const SYSTEM_PROMPT = [
   "Отвечай естественно, по-русски, кратко и так, чтобы ответ было удобно слушать.",
   "Обычно используй 1–3 коротких предложения. Не используй Markdown, таблицы, списки с символами или длинные вступления.",
   "Если вопрос требует актуальных данных и переданы результаты поиска, опирайся на них; не выдумывай отсутствующие факты.",
-  "Если не знаешь ответа, честно скажи об этом."
+  "Если не знаешь ответа, честно скажи об этом.",
+  "Ты не можешь управлять колонкой, умным домом, музыкой, таймерами, будильниками и напоминаниями. Никогда не говори, что выполнил такое действие; вместо этого скажи, что это умеет обычная Алиса, и предложи сказать «Алиса, хватит», а потом повторить команду."
 ].join(" ");
+
+const DEVICE_COMMAND_REPLY = "Это умеет обычная Алиса, а не я. Выхожу из навыка — повторите команду ещё раз.";
 
 function aliceResponse(text, endSession = false, history = []) {
   return {
@@ -49,6 +52,11 @@ function fitAliceText(value) {
 
 function isSearchIntent(text) {
   return /\b(latest|today|current|news|weather|price|exchange rate|recent|search|look up)\b|сегодня|сейчас|вчера|завтра|на этой неделе|в этом (году|месяце)|последн|новост|погод|курс|найди|поищи|узнай|актуальн|сколько стоит|сколько сейчас|(?<![а-яё])цен[аыуе](?![а-яё])|стоимост|свежие данные|что нового|кто выиграл|счёт матча|счет матча|результат|расписани|когда выйдет|когда будет|кто сейчас|\b20[2-3]\d\b/i.test(text);
+}
+
+function isDeviceCommand(text) {
+  const t = String(text || "").toLowerCase();
+  return /таймер|будильник|разбуди|напомни|напоминани|секундомер|громче|тише|громкост|без звука|(?<![а-яё])пауз[аы]?(?![а-яё])|следующ(ий|ую) (трек|песн)|(включи|выключи|поставь|запусти|останови)\s+(музык|песн|трек|радио|плейлист|подкаст|альбом|мультик|фильм|сериал|видео|свет|ламп|люстр|розетк|кондиционер|обогреват|телевизор|пылесос|чайник)|(?<![а-яё])(включи|выключи)(?![а-яё])\s*$/.test(t);
 }
 
 function safeHistory(history) {
@@ -224,6 +232,11 @@ export default async function handler(req, res) {
     ));
   }
 
+  if (isDeviceCommand(text)) {
+    console.log("Device command detected, ending skill session");
+    return res.status(200).json(aliceResponse(DEVICE_COMMAND_REPLY, true, oldHistory));
+  }
+
   try {
     let searchContext = "";
     if (isSearchIntent(text) && process.env.SERPER_API_KEY) {
@@ -254,4 +267,4 @@ export default async function handler(req, res) {
   }
 }
 
-export { aliceResponse, fitAliceText, isSearchIntent, safeHistory };
+export { aliceResponse, fitAliceText, isSearchIntent, isDeviceCommand, safeHistory };
